@@ -52,41 +52,17 @@ insertData = (graph, data, activeItem, mode, sizeLogScale) ->
     for nodeid, node of nodes
       node.radius = radscaler node.size
 
-  svg = graph.append('svg').attr(xmlns: "http://www.w3.org/2000/svg", xlink: "http://www.w3.org/1999/xlink")
-  tooltip = d3.select("body").append("div").attr("class", "tooltip").style("opacity", 0)
+
+  svg = graph.append('svg')
+  svg.attr("xmlns", "http://www.w3.org/2000/svg")
+  svg.attr("xlink", "http://www.w3.org/1999/xlink")
+  tooltip = d3.select("body").append("div")
+  tooltip.attr("class", "tooltip")
+  tooltip.style("opacity", 0)
 
   transform = (d) -> "translate(#{d.x},#{d.y})"
 
-  useGroups = no
-
-  tick = (e) ->
-    if useGroups
-      groups = {}
-
-      circle.each (d) ->
-        group = d.name.toLowerCase() > 'k'
-        groups[group] = x: 0.0, y: 0.0, s: 0 if not groups[group]
-        groups[group].x += d.x
-        groups[group].y += d.y
-        groups[group].s++
-        return
-
-      for group, ob of groups
-        groups[group].x /= groups[group].s
-        groups[group].y /= groups[group].s
-
-      k = 6 * e.alpha
-      circle.each (d) ->
-        group = d.name.toLowerCase()  > 'k'
-        d.x = d.x * (1 - k) + groups[group].x * k
-        d.y = d.y * (1 - k) + groups[group].y * k
-
-        d.x += -d.x*k if d.x < 0
-        d.x -= (d.x - width)*k if d.x > width
-        d.y += -d.y*k if d.y < 0
-        d.y -= (d.y - height)*k if d.y > height
-        return
-
+  tick = ->
     if hasSize
       length = ({x, y}) -> Math.sqrt(x*x + y*y)
       sum = ({x:x1, y:y1}, {x:x2, y:y2}) -> x: x1+x2, y: y1+y2
@@ -107,48 +83,67 @@ insertData = (graph, data, activeItem, mode, sizeLogScale) ->
         d.tp  = diff target, scale dvec, target.radius
 
         return
-      .attr
-        x1: ({sp}) -> sp.x
-        y1: ({sp}) -> sp.y
-        x2: ({tp}) -> tp.x
-        y2: ({tp}) -> tp.y
+      line.attr('x1', ({sp}) -> source.x)
+      line.attr('y1', ({sp}) -> source.y)
+      line.attr('x2', ({sp}) -> target.x)
+      line.attr('y2', ({sp}) -> target.y)
     else
-      line.attr
-        x1: ({source}) -> source.x
-        y1: ({source}) -> source.y
-        x2: ({target}) -> target.x
-        y2: ({target}) -> target.y
+      line.attr('x1', ({source}) -> source.x)
+      line.attr('y1', ({source}) -> source.y)
+      line.attr('x2', ({target}) -> target.x)
+      line.attr('y2', ({target}) -> target.y)
 
-    circle.attr transform: transform
-    text.attr transform: transform
+    circle.attr('transform', transform)
+    text.attr('transform', transform)
     return
 
   zoomed = ->
-    container.attr 'transform', "translate(#{d3.event.translate})scale(#{d3.event.scale})"
+    container.attr('transform', d3.event.transform)
     return
 
-  zoom = d3.behavior.zoom().on('zoom', zoomed)
-  force = d3.layout.force()
-  drag = force.drag().on "dragstart", -> d3.event.sourceEvent.stopPropagation(); return
+  zoom = d3.zoom().on('zoom', zoomed)
 
-  linkDistance = if useGroups then 1 else 30
-  charge = if useGroups then -5000 else -200
-  gravity = if useGroups then .05 else .05
+  linkDistance = 30
+  charge = -200
 
-  force.nodes(d3.values nodes).links(links)
-       .linkDistance(linkDistance).charge(charge).gravity(gravity)
-       .on('tick', tick).start()
+  simulation = d3.forceSimulation(d3.values nodes)
+    .force("charge", d3.forceManyBody().strength(charge))
+    .force('link', d3.forceLink().links(links))
+    .force("CollideForce", d3.forceCollide()) 
+  simulation.on("tick",tick)
+
+  dragstarted = (d) ->
+    if not d3.event.active
+      simulation.alphaTarget(0.3).restart()
+    d.fx = d.x
+    d.fy = d.y
+  dragged = (d) ->
+    d.fx = d3.event.x
+    d.fy = d3.event.y
+  dragended = (d) ->
+    if not d3.event.active
+      simulation.alphaTarget(0)
+    d.fx = null
+    d.fy = null
 
   svg.attr("pointer-events", "all")
   svg.selectAll('*').remove()
 
   arrowOffset = if hasSize then 0 else 6
 
-  svg.append('defs').selectAll('marker').data(['direction']).enter()
-     .append('marker').attr(
-      id: ((d) -> d), viewBox: "0 -5 10 10", refX: 10 + arrowOffset - 1,
-      markerWidth: 6, markerHeight: 6, orient: 'auto')
-     .append('path').attr(d: 'M0,-5L10,0L0,5')
+  marker = svg.append('defs')
+    .selectAll('marker')
+    .data(['direction'])
+    .enter()
+    .append('marker')
+  marker.attr("id", ((d) -> d) )
+  marker.attr("viewBox", "0 -5 10 10" )
+  marker.attr("refX", 10 + arrowOffset - 1)
+  marker.attr("markerWidth", 6 )
+  marker.attr("markerHeight", 6 )
+  marker.attr("orient", 'auto')
+  path = marker.append('path')
+  path.attr('d', 'M0,-5L10,0L0,5')
 
   svg_group = svg.append("g").attr("transform", "translate(0,0)").call(zoom)
 
@@ -157,13 +152,23 @@ insertData = (graph, data, activeItem, mode, sizeLogScale) ->
 
   container = svg_group.append("g")
 
-  line = container.append('g').selectAll('line').data(force.links()).enter()
-            .append('line').attr('marker-end': 'url(#direction)')
+  line = container
+    .append('g')
+    .selectAll('line')
+    .data(links)
+    .enter()
+    .append('line')
+  line.attr('marker-end', 'url(#direction)')
 
   radius = if hasSize then ((d) -> d.radius) else 6
 
-  circle = container.append('g').selectAll('circle').data(force.nodes()).enter()
-  .append('circle').attr(r: radius, cx: ((d) -> d.x), cy: ((d) -> d.y))
+  circle = container
+    .append('g')
+    .selectAll('circle')
+    .data(simulation.nodes())
+    .enter()
+    .append('circle')
+  circle.attr('r', radius)
 
   if hasSize
     tooltipFn = (d) -> "#{d.name}<br/>Size: #{d.size}"
@@ -185,22 +190,32 @@ insertData = (graph, data, activeItem, mode, sizeLogScale) ->
     circle.classed('linked', (o) -> o.hasLink)
 
   circle.classed('active', (o) -> o.url.endsWith(activeItem))
-  circle.call(drag)
+  circle.call(d3.drag()
+          .on("start", dragstarted)
+          .on("drag", dragged)
+          .on("end", dragended))
 
-  text = container.append('g').selectAll('text').data(force.nodes()).enter()
-            .append('text').attr(x: 8, y: '.31em')
-            .text((d) -> d.name).on('click', (o) -> window.open o.url; return)
+  text = container.append('g')
+    .selectAll('text')
+    .data(simulation.nodes())
+    .enter()
+    .append('text')
+    .text((d) -> d.name)
+    .on('click', (o) -> window.open o.url; return)
+  text.attr('x', 8)
+  text.attr('y', '.31em')
 
   width = height = 0
 
   resize = ->
-    # sidenavWidth = document.getElementsByTagName('md-sidenav')[0].offsetWidth
     sidenavWidth = 300
     width = window.innerWidth - sidenavWidth
     height = window.innerHeight
-    svg.attr width: width, height: height
-    drag_rect.attr width: width, height: height
-    force.size([width, height]).resume()
+    svg.attr('width', width)
+    svg.attr('height', height)
+    drag_rect.attr('width', width)
+    drag_rect.attr('height', height)
+    simulation.force("center", d3.forceCenter(width / 2, height / 2))
     return
 
   resize()
