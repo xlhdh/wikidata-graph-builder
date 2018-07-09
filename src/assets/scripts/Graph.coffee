@@ -60,9 +60,33 @@ insertData = (graph, data, activeItem, mode, sizeLogScale) ->
   tooltip.attr("class", "tooltip")
   tooltip.style("opacity", 0)
 
-  transform = (d) -> "translate(#{d.x},#{d.y})"
+  levelingForce = (alpha) ->
+    k = 6 * alpha
+    line.each (d) ->
+      {source, target} = d
+      if (d.target.y - d.source.y) > 100
+        d.source.vy += k
+        d.target.vy -= k
+      else
+        d.source.vy -= k
+        d.target.vy += k
 
+  childrenForce = (alpha) ->
+    k = 6 * alpha
+    line.each (d) ->
+      {source, target} = d
+      m = (d.target.x - d.source.x) / Math.abs(d.target.x - d.source.x)
+      d.source.vx += k * m
+      d.target.vx -= k * m
+
+  transform = (d) -> "translate(#{d.x},#{d.y})"
   tick = ->
+    line.each (d) ->
+      {source, target} = d
+      if source.fy and not target.fy
+        target.fy = source.fy + linkDistance
+      if target.fy and not source.fy
+        source.fy = target.fy - linkDistance
     if hasSize
       length = ({x, y}) -> Math.sqrt(x*x + y*y)
       sum = ({x:x1, y:y1}, {x:x2, y:y2}) -> x: x1+x2, y: y1+y2
@@ -103,14 +127,23 @@ insertData = (graph, data, activeItem, mode, sizeLogScale) ->
 
   zoom = d3.zoom().on('zoom', zoomed)
 
-  linkDistance = 30
+  linkDistance = 50
   charge = -200
 
+  fix1 = -> 
+    line.each (d) ->
+        {source, target} = d
+        source.fy =  Math.floor(Math.random() * 100)
+        break
+
+
   simulation = d3.forceSimulation(d3.values nodes)
-    .force("charge", d3.forceManyBody().strength(charge))
-    .force('link', d3.forceLink().links(links))
-    .force("CollideForce", d3.forceCollide()) 
-  simulation.on("tick",tick)
+  # simulation.force("level", levelingForce)
+  simulation.force("children", childrenForce)
+  simulation.force("Link", d3.forceLink().distance(linkDistance))
+  simulation.force("CollideForce", d3.forceCollide().radius(30))
+  simulation.nodes()[0].fy = 1
+  simulation.on("tick", tick)
 
   dragstarted = (d) ->
     if not d3.event.active
