@@ -12,10 +12,10 @@ gulp.task 'browser-sync', ->
 
 gulp.task 'serve', ->
     browserSync.init server: './dist'
-    gulp.watch 'src/assets/stylesheets/*.styl', [ 'css' ]
-    gulp.watch 'src/assets/scripts/*.js', [ 'js' ]
-    gulp.watch 'src/assets/scripts/*.coffee', [ 'js' ]
-    gulp.watch 'src/*.jade', [ 'templates' ]
+    gulp.watch 'src/assets/stylesheets/*.styl', (gulp.series 'css')
+    gulp.watch 'src/assets/scripts/*.js', (gulp.series 'js')
+    gulp.watch 'src/assets/scripts/*.coffee', (gulp.series 'js')
+    gulp.watch 'src/*.jade', (gulp.series 'templates')
     return
 
 # Build tasks
@@ -49,7 +49,7 @@ gulp.task 'bower-fonts', ->
     .pipe $.flatten()
     .pipe gulp.dest 'dist/assets/fonts/'
 
-gulp.task 'bower-all', ['bower-css', 'bower-js', 'bower-fonts']
+gulp.task 'bower-all', (gulp.parallel 'bower-css', 'bower-js', 'bower-fonts')
 
 gulp.task 'css', ->
     gulp.src 'src/assets/stylesheets/*.styl'
@@ -85,5 +85,5 @@ gulp.task 'deploy', ->
 
 
 # User tasks
-gulp.task 'build', ['bower-all', 'js', 'css', 'templates']
-gulp.task 'default', ['build', 'serve']
+gulp.task 'build', (gulp.parallel 'bower-all', 'js', 'css', 'templates')
+gulp.task 'default', (gulp.parallel 'build', 'serve')

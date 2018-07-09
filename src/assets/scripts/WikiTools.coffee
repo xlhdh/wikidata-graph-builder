@@ -1,10 +1,11 @@
 WikiTools = angular.module('WikiTools', [])
+  .controller 'AuthorizeController', [
+    "$sce"]
 
 WikiToolsService = ($log, $http, $httpParamSerializer) ->
   wdApiParams = $httpParamSerializer
     format: 'json'
     formatversion: 2
-    callback: 'JSON_CALLBACK'
 
   @createApi = (param1, param2) ->
     [param1, param2] = ['www', param1] if not param2
@@ -26,7 +27,7 @@ WikiToolsService = ($log, $http, $httpParamSerializer) ->
 
     success = (response) => response.data.search
     error = (response) -> $log.error 'Request failed'; reject 'Request failed'
-    @get(@wikidata, params).then(success, error)
+    @get(@wikidata, params).then(success, error).catch(angular.noop)
 
   @getEntity = (what, language) =>
     params =

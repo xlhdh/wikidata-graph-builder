@@ -152,8 +152,11 @@ FormCtrl.$inject = [
 
 app = angular.module 'WgbApp', ['ngMaterial', 'WikiTools', 'Graph', 'SparqlGen']
 
-app.config ['$locationProvider', ($locationProvider) ->
+app.config ['$locationProvider' 
+'$sceDelegateProvider' 
+($locationProvider, $sceDelegateProvider) ->
   $locationProvider.html5Mode enabled: true, requireBase: false
+  $sceDelegateProvider.resourceUrlWhitelist( ['https://www.wikidata.org/w/**', 'self'])
   return
 ]
 
