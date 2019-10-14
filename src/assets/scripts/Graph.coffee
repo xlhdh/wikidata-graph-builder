@@ -72,12 +72,29 @@ insertData = (graph, data, activeItem, mode, sizeLogScale) ->
         d.target.vy += k
 
   childrenForce = (alpha) ->
-    k = 6 * alpha
+    k = 50 * alpha
     line.each (d) ->
       {source, target} = d
       m = (d.target.x - d.source.x) / Math.abs(d.target.x - d.source.x)
       d.source.vx += k * m
       d.target.vx -= k * m
+
+  crossForce = (alpha) ->
+    k = 5 * alpha
+    line.each (o) -> 
+      {source_o, target_o} = o
+      line.each (i) -> 
+        {source_i, target_i} = i
+        return if o.source.index is i.source.index
+        return if o.target.index is i.target.index
+        return if o.source.y != i.source.y
+        return if o.target.y != i.target.y
+        return if (o.source.x > i.source.x) is (o.target.x > i.target.x)
+        m = (o.target.x - i.target.x) / Math.abs(o.target.x - i.target.x)
+        i.target.vx += k * m
+        o.target.vx -= k * m
+        i.source.vx -= k * m
+        o.source.vx += k * m
 
   transform = (d) -> "translate(#{d.x},#{d.y})"
   tick = ->
@@ -128,19 +145,13 @@ insertData = (graph, data, activeItem, mode, sizeLogScale) ->
   zoom = d3.zoom().on('zoom', zoomed)
 
   linkDistance = 50
-  charge = -200
-
-  fix1 = -> 
-    line.each (d) ->
-        {source, target} = d
-        source.fy =  Math.floor(Math.random() * 100)
-        break
-
+  charge = -10
 
   simulation = d3.forceSimulation(d3.values nodes)
   # simulation.force("level", levelingForce)
   simulation.force("children", childrenForce)
-  simulation.force("Link", d3.forceLink().distance(linkDistance))
+  simulation.force("cross", crossForce)
+  # simulation.force("Link", d3.forceLink().distance(linkDistance))
   simulation.force("CollideForce", d3.forceCollide().radius(30))
   simulation.nodes()[0].fy = 1
   simulation.on("tick", tick)

@@ -40,3 +40,5 @@ bower_components
 
 # compiled project files
 dist
+
+package-lock.json
